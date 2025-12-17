@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Art Exhibition : Horizon Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    
+    <style>
+        /* [디자인 요소: 회색/검정/모던/차분함] */
+        :root {
+            --bg-color: #050505;
+            --text-main: #e0e0e0;
+            --text-sub: #888888;
+            --accent: #ffffff;
+            --panel-bg: rgba(20, 20, 20, 0.7); /* 반투명 검정 */
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Lato', sans-serif;
+            overflow: hidden; /* 스크롤 방지 */
+        }
+
+        /* 캔버스 (작품) 스타일: 배경에 위치 */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* 인트로 오버레이 (클릭 유도) */
+        #intro-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease;
+            cursor: pointer;
+        }
+        #intro-overlay h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            font-weight: 400;
+            letter-spacing: 0.1em;
+            color: var(--text-main);
+            margin-bottom: 1rem;
+        }
+        #intro-overlay p {
+            color: var(--text-sub);
+            font-size: 0.9rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        /* UI 레이어 (정보 패널) */
+        #ui-layer {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 350px;
+            z-index: 10;
+            pointer-events: none; /* 마우스가 텍스트를 통과해 작품과 상호작용하도록 */
+        }
+
+        .info-panel {
+            background: var(--panel-bg);
+            padding: 30px;
+            border-left: 1px solid var(--text-sub);
+            backdrop-filter: blur(5px);
+            pointer-events: auto; /* 패널 부분은 클릭 가능 */
+            opacity: 0; /* 시작 시 숨김 */
+            transform: translateY(20px);
+            transition: all 1.5s ease 0.5s;
+        }
+
+        .show-ui .info-panel {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        h2#art-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            margin: 0 0 10px 0;
+            color: var(--accent);
+            line-height: 1.2;
+        }
+
+        .meta-info {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 20px;
+            display: block;
+            letter-spacing: 0.05em;
+        }
+
+        p#art-desc {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #ccc;
+            margin-bottom: 25px;
+            font-weight: 300;
+            text-align: justify;
+        }
+
+        /* 오디오 컨트롤 */
+        .audio-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 15px;
+        }
+
+        .control-btn {
+            background: transparent;
+            border: 1px solid var(--text-sub);
+            color: var(--text-sub);
+            padding: 8px 16px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .control-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .control-btn.active {
+            background-color: var(--text-main);
+            color: var(--bg-color);
+            border-color: var(--text-main);
+        }
+
+        .curator-badge {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 0.9rem;
+            color: var(--text-sub);
+        }
+
+    </style>
+</head>
+<body>
+
+    <audio id="bgm" src="background.mp3" loop></audio>
+    <audio id="narration" src="explain.mp3"></audio>
+
+    <div id="intro-overlay" onclick="startExhibition()">
+        <h1>ENTER EXHIBITION</h1>
+        <p>Click anywhere to begin</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div class="info-panel">
+            <h2 id="art-title">Loading Title...</h2>
+            <span class="meta-info">
+                <span id="art-artist">Artist</span> | <span id="art-date">Date</span>
+            </span>
+            <p id="art-desc">Loading Description...</p>
+            
+            <div class="curator-box">
+                <span class="curator-badge">Curator's Voice</span>
+                <div class="audio-controls">
+                    <button id="btn-narration" class="control-btn" onclick="toggleNarration()">
+                        ▶ Guide
+                    </button>
+                    <button id="btn-bgm" class="control-btn active" onclick="toggleBGM()">
+                        BGM ON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 텍스트 데이터 로드 (외부 .txt 파일 연동) ---
+        async function loadGalleryData() {
+            try {
+                // gallery_info.txt 파일을 가져옵니다.
+                const response = await fetch('gallery_info.txt');
+                if (!response.ok) throw new Error("Info file not found");
+                
+                const data = await response.json(); // JSON 형식으로 파싱
+
+                // HTML 요소에 데이터 주입
+                document.getElementById('art-title').textContent = data.title;
+                document.getElementById('art-artist').textContent = data.artist;
+                document.getElementById('art-date').textContent = data.date;
+                document.getElementById('art-desc').textContent = data.description;
+            } catch (error) {
+                console.error("데이터 로드 실패:", error);
+                document.getElementById('art-desc').textContent = "작품 정보를 불러오는 중 오류가 발생했습니다. (gallery_info.txt 확인 필요)";
+            }
+        }
+
+        // --- 2. 오디오 제어 시스템 ---
+        const bgm = document.getElementById('bgm');
+        const narration = document.getElementById('narration');
+        let isStarted = false;
+
+        function startExhibition() {
+            if (isStarted) return;
+            isStarted = true;
+
+            // 오버레이 페이드 아웃
+            const overlay = document.getElementById('intro-overlay');
+            overlay.style.opacity = 0;
+            setTimeout(() => { overlay.style.display = 'none'; }, 1000);
+
+            // UI 표시
+            document.body.classList.add('show-ui');
+
+            // BGM 재생 (볼륨 조절)
+            bgm.volume = 0.4;
+            bgm.play();
+
+            // 데이터 로드 실행
+            loadGalleryData();
+        }
+
+        function toggleNarration() {
+            const btn = document.getElementById('btn-narration');
+            if (narration.paused) {
+                narration.play();
+                bgm.volume = 0.1; // 나레이션 시 BGM 줄임
+                btn.textContent = "❚❚ Pause";
+                btn.classList.add('active');
+            } else {
+                narration.pause();
+                bgm.volume = 0.4; // BGM 복구
+                btn.textContent = "▶ Guide";
+                btn.classList.remove('active');
+            }
+        }
+
+        // 나레이션 끝나면 버튼 상태 복구
+        narration.onended = function() {
+            document.getElementById('btn-narration').textContent = "▶ Guide";
+            document.getElementById('btn-narration').classList.remove('active');
+            bgm.volume = 0.4;
+        };
+
+        function toggleBGM() {
+            const btn = document.getElementById('btn-bgm');
+            if (bgm.paused) {
+                bgm.play();
+                btn.textContent = "BGM ON";
+                btn.classList.add('active');
+            } else {
+                bgm.pause();
+                btn.textContent = "BGM OFF";
+                btn.classList.remove('active');
+            }
+        }
+
+        // --- 3. p5.js 작품 코드 통합 (Horizon Engine) ---
+        // 제공된 aiart001.html 코드를 인스턴스 모드로 여기에 포함
+        const sketch = (p) => {
+            let particles = [];
+            const numParticles = 2200; 
+            let time = 0;
+            let chaosWeight = 1.0;
+            let alignWeight = 0.0;
+            let centerForceWeight = 0.01;
+            let colorShift = 0;
+
+            p.setup = () => {
+                // 캔버스 컨테이너에 생성
+                let canvas = p.createCanvas(p.windowWidth, p.windowHeight);
+                canvas.parent('canvas-container');
+                p.colorMode(p.HSB, 360, 100, 100, 1);
+                p.noCursor();
+                initParticles();
+                p.background(0);
+            };
+
+            p.draw = () => {
+                time += 0.008;
+                
+                chaosWeight = p.lerp(2.0, 0.05, smoothStep(0, 40, time));
+                alignWeight = p.lerp(0.0, 4.0, smoothStep(10, 60, time));
+                centerForceWeight = p.lerp(0.005, 0.6, smoothStep(5, 70, time));
+                colorShift = smoothStep(0, 80, time);
+
+                p.blendMode(p.BLEND);
+                p.background(0, 0, 0, 0.04);
+                
+                p.blendMode(p.ADD);
+
+                let impulseActive = p.mouseIsPressed;
+
+                for (let pt of particles) {
+                    pt.follow(alignWeight, centerForceWeight, chaosWeight, impulseActive);
+                    pt.update();
+                    pt.edges();
+                    pt.show(colorShift, impulseActive);
+                }
+
+                drawAdvancedMouseLight(impulseActive);
+
+                // 원본의 drawUI()는 웹사이트 HTML 텍스트로 대체되었으므로 제거하거나 주석 처리
+                // UI는 HTML 레이어가 담당함
+            };
+
+            function initParticles() {
+                particles = [];
+                for (let i = 0; i < numParticles; i++) {
+                    particles.push(new Particle());
+                }
+            }
+
+            function smoothStep(start, end, t) {
+                let x = p.constrain((t - start) / (end - start), 0, 1);
+                return x * x * (3 - 2 * x);
+            }
+
+            function drawAdvancedMouseLight(impulse) {
+                let baseH = p.lerp(210, 35, colorShift);
+                let pulse = p.sin(p.frameCount * 0.1) * 10;
+                let sizeMult = impulse ? 1.5 : 1.0;
+
+                p.noStroke();
+                for (let i = 12; i > 0; i--) {
+                    let alpha = p.map(i, 12, 0, 0, 0.015);
+                    p.fill(baseH, 90, 100, alpha * (impulse ? 2 : 1));
+                    p.ellipse(p.mouseX, p.mouseY, i * (50 + pulse) * sizeMult);
+                }
+            }
+
+            p.windowResized = () => {
+                p.resizeCanvas(p.windowWidth, p.windowHeight);
+                p.background(0);
+            };
+
+            class Particle {
+                constructor() {
+                    this.pos = p.createVector(p.random(p.width), p.random(p.height));
+                    this.vel = p.createVector(p.random(-2, 2), p.random(-2, 2));
+                    this.acc = p.createVector(0, 0);
+                    this.maxSpeed = p.random(2, 7);
+                    this.prevPos = this.pos.copy();
+                    this.noiseSeed = p.random(5000);
+                    this.weight = p.random(0.3, 1.8);
+                }
+
+                update() {
+                    this.vel.add(this.acc);
+                    this.vel.limit(this.maxSpeed);
+                    this.pos.add(this.vel);
+                    this.acc.mult(0);
+                }
+
+                follow(alignW, centerW, chaosW, impulse) {
+                    let nScale = 0.0015;
+                    let n1 = p.noise(this.pos.x * nScale, this.pos.y * nScale, time * 0.2);
+                    let n2 = p.noise(this.pos.x * nScale * 2, this.pos.y * nScale * 2, this.noiseSeed);
+                    let angle = (n1 + n2) * p.TWO_PI * 3;
+                    let noiseVec = p5.Vector.fromAngle(angle).mult(chaosW * 4);
+
+                    let horizonVec = p.createVector(this.maxSpeed * 1.5, 0).mult(alignW);
+                    let targetY = p.height / 2 + p.sin(time * 0.5 + this.pos.x * 0.001) * (p.height * 0.1 * (1 - alignW/4));
+                    let centerDist = targetY - this.pos.y;
+                    let centerVec = p.createVector(0, centerDist * centerW);
+
+                    let mouse = p.createVector(p.mouseX, p.mouseY);
+                    let toMouse = p5.Vector.sub(mouse, this.pos);
+                    let d = toMouse.mag();
+                    if (d < 500) {
+                        let f = p.map(d, 0, 500, impulse ? 4.0 : 1.8, 0);
+                        toMouse.setMag(f);
+                        this.acc.add(toMouse);
+                    }
+
+                    this.acc.add(noiseVec);
+                    this.acc.add(horizonVec);
+                    this.acc.add(centerVec);
+                }
+
+                edges() {
+                    if (this.pos.x > p.width) {
+                        this.pos.x = 0;
+                        this.updatePrev();
+                    } else if (this.pos.x < 0) {
+                        this.pos.x = p.width;
+                        this.updatePrev();
+                    }
+                    if (this.pos.y > p.height || this.pos.y < 0) {
+                        this.pos.y = p.constrain(this.pos.y, 0, p.height);
+                        this.vel.y *= -1;
+                        this.updatePrev();
+                    }
+                }
+
+                updatePrev() {
+                    this.prevPos.set(this.pos);
+                }
+
+                show(shift, impulse) {
+                    let d = p.dist(this.pos.x, this.pos.y, p.mouseX, p.mouseY);
+                    let prox = p.map(p.constrain(d, 0, 400), 0, 400, 1, 0);
+                    
+                    let h = p.lerp(220, 25, shift) + (prox * 50);
+                    let s = p.map(prox, 0, 1, 60, 100);
+                    let b = p.map(this.vel.mag(), 0, this.maxSpeed, 40, 100) * p.map(prox, 0, 1, 0.8, 1.2);
+                    let a = p.map(prox, 0, 1, 0.05, 0.6);
+
+                    p.stroke(h, s, b, a);
+                    p.strokeWeight(this.weight * (1 + prox * 3));
+                    p.line(this.pos.x, this.pos.y, this.prevPos.x, this.prevPos.y);
+                    
+                    if (impulse && p.random(1) > 0.95) {
+                        p.noStroke();
+                        p.fill(h, 20, 100, a * 1.5);
+                        p.ellipse(this.pos.x, this.pos.y, this.weight * 5);
+                    }
+                    this.updatePrev();
+                }
+            }
+        };
+
+        new p5(sketch);
+    </script>
+</body>
+</html>
