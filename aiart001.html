@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horizon Engine : Prestige (Instance Mode)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* 스크롤바 제거 */
+      background-color: #000;
+    }
+    canvas {
+      display: block; /* 캔버스 여백 제거 */
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+
+<script>
+  // 인스턴스 모드 스케치 정의
+  const sketch = (p) => {
+    
+    let particles = [];
+    const numParticles = 2200; // 파티클 밀도
+    let time = 0;
+    let chaosWeight = 1.0;
+    let alignWeight = 0.0;
+    let centerForceWeight = 0.01;
+    let colorShift = 0;
+
+    p.setup = () => {
+      p.createCanvas(p.windowWidth, p.windowHeight);
+      p.colorMode(p.HSB, 360, 100, 100, 1);
+      p.noCursor();
+      initParticles();
+      p.background(0);
+    };
+
+    p.draw = () => {
+      time += 0.008; // 전이 속도 최적화
+      
+      // 상태 전이 알고리즘
+      chaosWeight = p.lerp(2.0, 0.05, smoothStep(0, 40, time));
+      alignWeight = p.lerp(0.0, 4.0, smoothStep(10, 60, time));
+      centerForceWeight = p.lerp(0.005, 0.6, smoothStep(5, 70, time));
+      colorShift = smoothStep(0, 80, time);
+
+      p.blendMode(p.BLEND);
+      // 잔상 효과
+      p.background(0, 0, 0, 0.04);
+      
+      p.blendMode(p.ADD);
+
+      let impulseActive = p.mouseIsPressed;
+
+      // 파티클 업데이트 루프
+      for (let pt of particles) {
+        pt.follow(alignWeight, centerForceWeight, chaosWeight, impulseActive);
+        pt.update();
+        pt.edges();
+        pt.show(colorShift, impulseActive);
+      }
+
+      // 동적 광원 시스템
+      drawAdvancedMouseLight(impulseActive);
+
+      p.blendMode(p.BLEND);
+      drawUI();
+    };
+
+    function initParticles() {
+      particles = [];
+      for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle());
+      }
+    }
+
+    // 부드러운 단계 함수 (Constrain도 p 메서드 사용)
+    function smoothStep(start, end, t) {
+      let x = p.constrain((t - start) / (end - start), 0, 1);
+      return x * x * (3 - 2 * x);
+    }
+
+    function drawAdvancedMouseLight(impulse) {
+      let baseH = p.lerp(210, 35, colorShift);
+      let pulse = p.sin(p.frameCount * 0.1) * 10;
+      let sizeMult = impulse ? 1.5 : 1.0;
+
+      p.noStroke();
+      for (let i = 12; i > 0; i--) {
+        let alpha = p.map(i, 12, 0, 0, 0.015);
+        p.fill(baseH, 90, 100, alpha * (impulse ? 2 : 1));
+        p.ellipse(p.mouseX, p.mouseY, i * (50 + pulse) * sizeMult);
+      }
+      
+      // 광원 중심점
+      for(let j = 0; j < 3; j++) {
+        p.fill(baseH, 10, 100, 0.3);
+        p.ellipse(p.mouseX, p.mouseY, 15 - j * 4);
+      }
+    }
+
+    function drawUI() {
+      p.push();
+      p.fill(0, 0, 100, 0.8);
+      p.noStroke();
+      p.textAlign(p.LEFT);
+      p.textFont('Georgia');
+      p.textSize(28);
+      p.text("HORIZON ENGINE : PRESTIGE", 50, 60);
+      
+      p.stroke(0, 0, 100, 0.2);
+      p.line(50, 75, 400, 75);
+      
+      p.noStroke();
+      p.textSize(11);
+      // p5.js에는 기본 letterSpacing 함수가 없으므로 drawingContext 사용
+      if(p.drawingContext.letterSpacing) { 
+        p.drawingContext.letterSpacing = "2px"; 
+      }
+      p.fill(0, 0, 100, 0.4);
+      p.text("SYSTEM STATE: " + (time < 20 ? "CHAOS" : time < 50 ? "ALIGNING" : "STABILIZED"), 52, 95);
+      
+      // 컨텍스트 복구 (다른 그리기에 영향 안 주도록)
+      if(p.drawingContext.letterSpacing) {
+         p.drawingContext.letterSpacing = "0px";
+      }
+      p.pop();
+    }
+
+    p.keyPressed = () => {
+      if (p.key === 'r' || p.key === 'R') {
+        time = 0;
+        initParticles();
+        p.blendMode(p.BLEND);
+        p.background(0);
+      }
+    };
+
+    p.windowResized = () => {
+      p.resizeCanvas(p.windowWidth, p.windowHeight);
+      p.background(0);
+    };
+
+    // Particle 클래스를 sketch 함수 내부에 정의하여 'p' 변수에 접근 가능하게 함
+    class Particle {
+      constructor() {
+        this.pos = p.createVector(p.random(p.width), p.random(p.height));
+        this.vel = p.createVector(p.random(-2, 2), p.random(-2, 2));
+        this.acc = p.createVector(0, 0);
+        this.maxSpeed = p.random(2, 7);
+        this.prevPos = this.pos.copy();
+        this.noiseSeed = p.random(5000);
+        this.weight = p.random(0.3, 1.8);
+      }
+
+      update() {
+        this.vel.add(this.acc);
+        this.vel.limit(this.maxSpeed);
+        this.pos.add(this.vel);
+        this.acc.mult(0);
+      }
+
+      follow(alignW, centerW, chaosW, impulse) {
+        // 다중 레이어 노이즈 필드
+        let nScale = 0.0015;
+        let n1 = p.noise(this.pos.x * nScale, this.pos.y * nScale, time * 0.2);
+        let n2 = p.noise(this.pos.x * nScale * 2, this.pos.y * nScale * 2, this.noiseSeed);
+        let angle = (n1 + n2) * p.TWO_PI * 3;
+        let noiseVec = p5.Vector.fromAngle(angle).mult(chaosW * 4);
+
+        // 수평선 유도 및 중앙 복원력
+        let horizonVec = p.createVector(this.maxSpeed * 1.5, 0).mult(alignW);
+        let targetY = p.height / 2 + p.sin(time * 0.5 + this.pos.x * 0.001) * (p.height * 0.1 * (1 - alignW/4));
+        let centerDist = targetY - this.pos.y;
+        let centerVec = p.createVector(0, centerDist * centerW);
+
+        // 지능형 마우스 상호작용
+        let mouse = p.createVector(p.mouseX, p.mouseY);
+        let toMouse = p5.Vector.sub(mouse, this.pos);
+        let d = toMouse.mag();
+        if (d < 500) {
+          let f = p.map(d, 0, 500, impulse ? 4.0 : 1.8, 0);
+          toMouse.setMag(f);
+          this.acc.add(toMouse);
+        }
+
+        this.acc.add(noiseVec);
+        this.acc.add(horizonVec);
+        this.acc.add(centerVec);
+      }
+
+      edges() {
+        if (this.pos.x > p.width) {
+          this.pos.x = 0;
+          this.updatePrev();
+        } else if (this.pos.x < 0) {
+          this.pos.x = p.width;
+          this.updatePrev();
+        }
+        if (this.pos.y > p.height || this.pos.y < 0) {
+          this.pos.y = p.constrain(this.pos.y, 0, p.height);
+          this.vel.y *= -1;
+          this.updatePrev();
+        }
+      }
+
+      updatePrev() {
+        this.prevPos.set(this.pos);
+      }
+
+      show(shift, impulse) {
+        let d = p.dist(this.pos.x, this.pos.y, p.mouseX, p.mouseY);
+        let prox = p.map(p.constrain(d, 0, 400), 0, 400, 1, 0);
+        
+        let h = p.lerp(220, 25, shift) + (prox * 50);
+        let s = p.map(prox, 0, 1, 60, 100);
+        let b = p.map(this.vel.mag(), 0, this.maxSpeed, 40, 100) * p.map(prox, 0, 1, 0.8, 1.2);
+        let a = p.map(prox, 0, 1, 0.05, 0.6);
+
+        p.stroke(h, s, b, a);
+        p.strokeWeight(this.weight * (1 + prox * 3));
+        p.line(this.pos.x, this.pos.y, this.prevPos.x, this.prevPos.y);
+        
+        // 고밀도 입자 발광 효과
+        if (impulse && p.random(1) > 0.95) {
+          p.noStroke();
+          p.fill(h, 20, 100, a * 1.5);
+          p.ellipse(this.pos.x, this.pos.y, this.weight * 5);
+        }
+        
+        this.updatePrev();
+      }
+    }
+  };
+
+  // p5 인스턴스 생성
+  new p5(sketch);
+</script>
+
+</body>
+</html>
