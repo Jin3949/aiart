@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art Gallery</title>
+    <style>
+        :root {
+            --main-bg-color: #0a0a0f;
+            --primary-text-color: #ffffff;
+            --secondary-text-color: #cccccc;
+            --accent-color: #007bff;
+            --font-main: 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif';
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--main-bg-color);
+            color: var(--primary-text-color);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #artwork-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #artwork-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #info-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            z-index: 2;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 400px;
+            border-left: 3px solid var(--accent-color);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        #artwork-title {
+            font-size: 2em;
+            margin: 0 0 10px 0;
+            font-weight: bold;
+        }
+
+        #artwork-artist, #artwork-date {
+            font-size: 1em;
+            color: var(--secondary-text-color);
+            margin: 0 0 20px 0;
+        }
+        
+        #artwork-description {
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        
+        #curator-controls {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            z-index: 2;
+        }
+
+        #play-narration {
+            background: rgba(0, 0, 0, 0.6);
+            color: var(--primary-text-color);
+            border: 1px solid var(--accent-color);
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        #play-narration:hover {
+            background: var(--accent-color);
+            color: var(--main-bg-color);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="artwork-container">
+        <iframe id="artwork-frame" src="aiart001.html"></iframe>
+    </div>
+
+    <div id="info-panel">
+        <h1 id="artwork-title"></h1>
+        <p id="artwork-artist"></p>
+        <p id="artwork-date"></p>
+        <p id="artwork-description"></p>
+    </div>
+
+    <div id="curator-controls">
+        <button id="play-narration">큐레이터 설명 듣기</button>
+    </div>
+
+    <audio id="background-audio" src="background.mp3" autoplay loop></audio>
+    <audio id="narration-audio" src="exlpain.mp3"></audio>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Fetch and display artwork info
+            fetch('info.txt')
+                .then(response => response.text())
+                .then(text => {
+                    const info = {};
+                    text.split('\n').forEach(line => {
+                        const parts = line.split(':');
+                        if (parts.length >= 2) {
+                            const key = parts[0].trim().toLowerCase();
+                            const value = parts.slice(1).join(':').trim();
+                            info[key] = value;
+                        }
+                    });
+
+                    document.getElementById('artwork-title').textContent = info.title || '제목 없음';
+                    document.getElementById('artwork-artist').textContent = `Artist: ${info.artist || '작가 미상'}`;
+                    document.getElementById('artwork-date').textContent = `Date: ${info.date || '날짜 미상'}`;
+                    document.getElementById('artwork-description').textContent = info.description || '설명 없음';
+                })
+                .catch(error => {
+                    console.error('Error fetching artwork info:', error);
+                    document.getElementById('info-panel').textContent = '작품 정보를 불러오는 데 실패했습니다.';
+                });
+
+            // Audio controls
+            const narrationAudio = document.getElementById('narration-audio');
+            const playButton = document.getElementById('play-narration');
+            
+            playButton.addEventListener('click', () => {
+                if (narrationAudio.paused) {
+                    narrationAudio.play();
+                    playButton.textContent = '설명 멈춤';
+                } else {
+                    narrationAudio.pause();
+                    playButton.textContent = '큐레이터 설명 듣기';
+                }
+            });
+
+            narrationAudio.onended = () => {
+                playButton.textContent = '큐레이터 설명 듣기';
+            };
+            
+            // Adjust background volume
+            const backgroundAudio = document.getElementById('background-audio');
+            backgroundAudio.volume = 0.3; // 배경음악 볼륨을 30%로 설정
+        });
+    </script>
+
+</body>
+</html>
